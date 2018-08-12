@@ -1,0 +1,9 @@
+{
+  "name": "dependents-grapher",
+  "version": "0.0.1",
+  "description": "tool for visualizing a file's dependents graph #proof-of-concept #engineering-tool #gus",
+  "main": "index.js",
+  "repository": "git@github.com:cogell/dependents-grapher.git",
+  "author": "B. Cedric Cogell <cedric.cogell@gmail.com>",
+  "license": "MIT"
+}
