@@ -1,46 +1,75 @@
+var path = require('path');
+var fs = require('fs');
 var dependents = require('dependents');
-var fs = require('fs')
+var glob = require('glob');
+var util = require('util');
 
-const getFilenameFromPath = filepath => filepath.replace(/^.*[\\\/]/, '')
+// TODO: promisify all libs before use...
 
-const transformsDepsToRaw = (filename, dependentsArray) => {
+const getFilenameFromPath = filepath => filepath.replace(/^.*[\\\/]/, '');
+
+const transformsDentsToRaw = (filename, dependentsArray) => {
   const children = dependentsArray.map(dependentRelativePath => {
     return {
       name: getFilenameFromPath(dependentRelativePath),
-    }
+    };
   });
 
   return {
     name: getFilenameFromPath(filename),
     children,
+  };
+};
+
+const writeDependentsIntoSrc = async (filename, rawDependents) => {
+  try {
+    const filepath = path.resolve('./src/data/', `${filename}.json`)
+    util.promisify(fs.writeFile)(
+      filepath,
+      JSON.stringify(rawDependents),
+    );
+    console.log(`${filepath} success`)
+  } catch (err) {
+    // deal with it
   }
 }
 
-const writeDependentsIntoSrc = rawDependents => fs.writeFileSync('./src/data/raw-dependents.json', JSON.stringify(rawDependents))
+const getJavasScriptFiles = async directory =>
+  await util.promisify(glob)(`${directory}/**/*.js`);
 
-function main() {
-  const filename = process.argv[2]
-  const directory = './example/src'
-  // const input = {
-  //   filename: './example/src/App.js',
-  //   directory: './example/src/',
-  // }
-
-  // const { filename, directory } = input;
-
-  console.log('filename', filename);
-
-  dependents({
+const getDependents = async (filename, directory) => {
+  const dents = await util.promisify(dependents)({
     filename,
     directory,
-  }, (err, dependents) => {
-    if (err) {
-      console.log(err);
-    }
-
-    const rawDependents = transformsDepsToRaw(filename, dependents);
-    writeDependentsIntoSrc(rawDependents);
   });
+  return transformsDentsToRaw(filename, dents);
+};
+
+async function main() {
+  const directory = process.argv[2];
+  console.log('directory', directory);
+
+  const javascriptFilePaths = await getJavasScriptFiles(directory);
+  const allRawDependents = await Promise.all(
+    javascriptFilePaths.map(javascriptFilePath =>
+      getDependents(javascriptFilePath, directory),
+    ),
+  );
+
+  await Promise.all(
+    allRawDependents.map((rawDependents, index) => {
+      const ogJsFile = javascriptFilePaths[index];
+      const filename = path.basename(ogJsFile, '.js');
+      return writeDependentsIntoSrc(filename, rawDependents);
+    }),
+  );
 }
 
-main();
+(async () => {
+  try {
+    var text = await main();
+    console.log(text);
+  } catch (e) {
+    // Deal with the fact the chain failed
+  }
+})();
